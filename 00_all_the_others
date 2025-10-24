@@ -1,12 +1,23 @@
-SELECT
-  CASE
-    WHEN u.email IS NULL THEN 'No Email'
-    ELSE 'Has Email'
-  END AS email_status,
-  COUNT(DISTINCT u.id) AS user_count
+CREATE OR REPLACE TABLE `dna-legal-central-data.case_mart.case_worker_directory_active` AS
+SELECT DISTINCT
+  u.id AS user_id,
+  CONCAT(u.first_name, ' ', u.last_name) AS full_name,
+  u.email,
+  u.mobile_number,
+  u.source AS user_source
 FROM `dna-legal-central-data.case_mart.users` AS u
 JOIN `dna-legal-central-data.case_mart.cases` AS c
   ON u.id = c.case_worker_id
 WHERE c.case_worker_id IS NOT NULL
-  AND c.status_normalized != 'Training/Duplicate'
-GROUP BY email_status;
+  AND c.status_normalized NOT IN (
+        'Training/Duplicate',
+        'Case Completed',
+        'Not Proceeding',
+        'Case Contact Closure',
+        'Closed'
+      )
+  AND (
+        c.updated_at >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
+        OR c.start_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
+      )
+ORDER BY full_name;
