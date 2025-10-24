@@ -1,0 +1,206 @@
+ # Next Dash  - Operations
+
+explore: operations_performance {
+  label: "Operations Performance"
+  description: "Explore focused on tracking case lifecycle and operational KPIs (e.g. booking, lab, reporting stages)."
+  view_name: cases_operations
+
+   # ✅ 🟣 Exclude Training/Duplicate cases
+  sql_always_where: ${cases_operations.status_normalized} != "Training/Duplicate" ;;
+
+
+  join: appointments {
+    from: appointments_x_participants       # <- uses the child view
+    type: left_outer
+    relationship: one_to_many
+    sql_on: ${cases_operations.id} = ${appointments.case_id} ;;
+  }
+
+
+  # === Bridge: appointments -> participants ===
+  join: appointment_participant {
+    type: left_outer
+    relationship: one_to_many           # one appointment can have many participants
+    sql_on: ${appointments.id} = ${appointment_participant.appointment_id} ;;
+    view_label: "Participant Link"
+  }
+
+  join: participants {
+    view_label: "Participant"
+    type: left_outer
+    relationship: many_to_one
+    sql_on: ${appointments.participant_id} = ${participants.id} ;;
+  }
+
+
+  join: tests {
+    type: left_outer
+    sql_on: ${cases_operations.id} = ${tests.parent_id} ;;
+    relationship: one_to_many
+  }
+
+  join: samples {
+    type: left_outer
+    sql_on: ${cases_operations.id} = ${samples.case_id} ;;
+    relationship: one_to_many
+  }
+
+  join: drug_alcohol_results {
+    type: left_outer
+    sql_on: ${tests.id} = ${drug_alcohol_results.test_id} ;;
+    relationship: one_to_many
+  }
+
+  join: mim_samples {
+    type: left_outer
+    sql_on: ${cases_operations.id} = ${mim_samples.case_id} ;;
+    relationship: one_to_many
+  }
+
+  join: users {
+    view_label: "User"
+    type: left_outer
+    relationship: many_to_one
+    sql_on: ${cases_operations.sales_person_id} = ${users.id} ;;
+  }
+
+  join: collectors {
+    view_label: "Collecor"
+    type: left_outer
+    relationship: many_to_many
+    sql_on: ${appointments.collector_id} = ${collectors.id} ;;
+  }
+
+  # Optional: keep a case-level view of participants
+  join: participants_by_case {
+    from: participants
+    view_label: "Participant (by Case)"
+    type: left_outer
+    relationship: one_to_many
+    sql_on: ${cases_operations.id} = ${participants.parent_id} ;;
+  }
+
+  join: avg_working_days_to_book_working {
+    type: left_outer
+    sql_on: ${appointments.id} = ${avg_working_days_to_book_working.appointment_id} ;;
+    relationship: one_to_one
+  }
+
+  join: hours_to_initial_contact_attempt {
+    type: left_outer
+    sql_on: ${appointments.id} = ${hours_to_initial_contact_attempt.appointment_id} ;;
+    relationship: one_to_one
+  }
+
+    join: avg_working_days_to_held {
+      type: left_outer
+      sql_on: ${appointments.id} = ${avg_working_days_to_held.appointment_id} ;;
+      relationship: many_to_one
+    }
+
+  join: avg_working_days_booked_to_held {
+    type: left_outer
+    sql_on: ${appointments.id} = ${avg_working_days_booked_to_held.appointment_id} ;;
+    relationship: many_to_one
+  }
+
+  join: maybe_wrong_avg_working_days_held_to_lab_received {
+    type: left_outer
+    sql_on: ${appointments.id} = ${maybe_wrong_avg_working_days_held_to_lab_received.appointment_id} ;;
+    relationship: one_to_many
+  }
+
+ join: avg_working_days_held_to_lab_received {
+  type: left_outer
+  sql_on: ${tests.id} = ${avg_working_days_held_to_lab_received.test_id} ;;
+  relationship: one_to_one
+}
+
+  join: time_utils {
+    type: cross
+    sql_on: TRUE ;;
+    relationship: one_to_one
+  }
+
+  join: case_worker_user {
+    from: users
+    view_label: "Case Worker"
+    type: left_outer
+    sql: ${cases_operations.case_worker_id} = ${case_worker_user.id} ;;
+    relationship: many_to_one
+  }
+
+  join: case_worker_id_map {
+    type: left_outer
+    sql_on: ${cases_operations.case_worker_id} = ${case_worker_id_map.user_id} ;;
+    relationship: many_to_one
+  }
+
+  join: avg_working_days_contact_to_booking {
+    type: left_outer
+    sql_on: ${appointments.id} = ${avg_working_days_contact_to_booking.appointment_id} ;;
+    relationship: many_to_one
+  }
+
+ join: avg_working_hours_to_initial_contact_attempt {
+  type: left_outer
+  sql_on: ${appointments.id} = ${avg_working_hours_to_initial_contact_attempt.appointment_id} ;;
+  relationship: many_to_one
+  view_label: "Diagnostics – Contact"
+}
+
+  join: contact_attempt_heatmap {
+    type: left_outer
+    sql_on: ${appointments.id} = ${contact_attempt_heatmap.appointment_id} ;;
+    relationship: one_to_one
+    view_label: "Diagnostics – Contact"
+  }
+
+  join: contact_success_heatmap {
+    type: left_outer
+    sql_on: ${appointments.id} = ${contact_success_heatmap.appointment_id} ;;
+    relationship: many_to_one
+    view_label: "Success Contact - Diagnostics – Contact"
+  }
+
+  join: avg_working_days_to_sample_by {
+    type: left_outer
+    sql_on: ${cases_operations.id} = ${avg_working_days_to_sample_by.case_id} ;;
+    relationship: one_to_one
+    view_label: "Working Days – Sample By"
+  }
+
+  join: avg_working_days_to_deadline {
+    type: left_outer
+    sql_on: ${cases_operations.id} = ${avg_working_days_to_deadline.case_id} ;;
+    relationship: one_to_one
+  }
+
+ join: case_volume_by_delay_bucket {
+  type: left_outer
+  sql_on: ${cases_operations.id} = ${case_volume_by_delay_bucket.case_id} ;;
+  relationship: one_to_one
+  view_label: "Delay Heatmap – Diagnostics"
+}
+
+  join: caseworker_summary {
+    type: left_outer
+    sql_on: ${cases_operations.case_worker_id} = ${caseworker_summary.case_worker_id} ;;
+    relationship: many_to_one
+    view_label: "Caseworker Summary"
+  }
+
+  join: accounts_joint_model {
+    type: left_outer
+    relationship: many_to_one
+    sql_on: ${cases_operations.account_id} = ${accounts_joint_model.id} ;;
+  }
+
+  join: avg_working_days_missed_pdt {
+    sql_on: ${caseworker_summary.case_worker_id} = ${avg_working_days_missed_pdt.case_worker_id} ;;
+    relationship: one_to_one
+    type: left_outer
+  }
+
+
+}
