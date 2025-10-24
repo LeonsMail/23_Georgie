@@ -1,0 +1,14 @@
+SELECT DISTINCT
+  u.id AS user_id,
+  u.full_name,
+  u.email,
+  u.source
+FROM `dna-legal-central-data.case_mart.users` AS u
+WHERE u.email IS NOT NULL
+  AND u.id IN (
+    SELECT DISTINCT case_worker_id
+    FROM `dna-legal-central-data.case_mart.cases`
+    WHERE case_worker_id IS NOT NULL
+      AND status_normalized != 'Training/Duplicate'
+  )
+ORDER BY u.full_name;
