@@ -1,10 +1,14 @@
 measure: count_case_completed_last_30_days {
-    type: sum
-    label: "Case Completed (Last 30 Days)"
-    value_format_name: decimal_0
-    sql: CASE
-          WHEN ${status_display} = 'Case Completed'
-           AND ${completed_raw} >= TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY))
-          THEN 1 ELSE 0
-        END ;;
-  }
+  type: sum
+  label: "Case Completed (Last 30 Days)"
+  value_format_name: decimal_0
+
+  sql:
+    CASE
+      WHEN LOWER(${status_display}) IN ('completed', 'case completed')
+       AND ${completed_raw} IS NOT NULL
+       AND DATE(${completed_raw}) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      THEN 1
+      ELSE 0
+    END ;;
+}
