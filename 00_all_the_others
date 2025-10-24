@@ -1,61 +1,357 @@
-view: case_worker_id_map_active {
-  label: "Case Worker ID Map (Active Only)"
-  description: "Active case workers only — sourced from case_worker_directory_active table. Used for filters in Case Worker Dashboard."
+
+view: caseworker_summary {
+  label: "Caseworker Summary"
 
   derived_table: {
     sql:
+      WITH classified AS (
+        SELECT
+          c.case_worker_id,
+          DATE(c.completed_at)                    AS completed_date,
+          DATE_TRUNC(DATE(c.completed_at), MONTH) AS completed_month,
+          EXTRACT(YEAR FROM c.completed_at)       AS completed_year,
+          DATE(c.working_deadline_date)           AS working_deadline_date,
+          DATE(c.deadline_date)                   AS ip_deadline_date,
+          DATE(c.deadline_given_to_ip_if_missed)  AS fallback_deadline_date,
+
+      CASE
+      WHEN c.completed_at IS NOT NULL
+      AND c.working_deadline_date IS NULL
+      AND c.deadline_date IS NULL
+      AND c.deadline_given_to_ip_if_missed IS NULL
+      THEN 'no_deadline_required'
+      WHEN c.completed_at IS NOT NULL
+      AND c.working_deadline_date IS NOT NULL
+      AND DATE(c.completed_at) <= DATE(c.working_deadline_date)
+      THEN 'working'
+      WHEN c.completed_at IS NOT NULL
+      AND c.deadline_date IS NOT NULL
+      AND DATE(c.completed_at) <= DATE(c.deadline_date)
+      THEN 'ip'
+      WHEN c.completed_at IS NOT NULL
+      AND c.deadline_given_to_ip_if_missed IS NOT NULL
+      AND DATE(c.completed_at) <= DATE(c.deadline_given_to_ip_if_missed)
+      THEN 'fallback'
+      WHEN c.completed_at IS NOT NULL THEN 'missed_all'
+      END AS deadline_category,
+
+      CASE
+      WHEN c.completed_at IS NOT NULL AND (
+      (c.working_deadline_date IS NOT NULL AND DATE(c.completed_at) > DATE(c.working_deadline_date)) OR
+      (c.deadline_date IS NOT NULL AND DATE(c.completed_at) > DATE(c.deadline_date)) OR
+      (c.deadline_given_to_ip_if_missed IS NOT NULL AND DATE(c.completed_at) > DATE(c.deadline_given_to_ip_if_missed))
+      )
+      THEN LEAST(
+      DATE_DIFF(
+      DATE(c.completed_at),
+      COALESCE(
+      DATE(c.deadline_given_to_ip_if_missed),
+      DATE(c.deadline_date),
+      DATE(c.working_deadline_date)
+      ),
+      DAY
+      ),
+      365
+      )
+      END AS days_late
+      FROM `dna-legal-central-data.case_mart.cases` c
+      WHERE c.case_worker_id IS NOT NULL
+      AND COALESCE(c.status_normalized, '') <> 'Training/Duplicate'
+      AND COALESCE(c.status, '') <> '40'
+      ),
+
+      -- 🟣 Compute which caseworkers are active this year (at least one case completed this year)
+      active_caseworkers AS (
+      SELECT DISTINCT c.case_worker_id
+      FROM classified c
+      JOIN `dna-legal-central-data.case_mart.users` u
+      ON c.case_worker_id = u.id
+      WHERE
+      -- ✅ Completed a case within the past 12 months
+      c.completed_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)
+
+      -- ✅ Exclude non-DNA Legal emails (external developers / MiM testers)
+      AND LOWER(u.email) NOT LIKE '%@scaffold.digital%'
+      AND LOWER(u.email) NOT LIKE '%@agiledrop.com%'
+      AND LOWER(u.email) NOT LIKE '%@dna-worldwide.co.uk%'
+
+      -- ✅ User record has been active within the last 12 months
+      AND DATE(u.updated_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH)
+      )
+
+      -- 🟣 Join back so active status applies to all years
       SELECT
-        full_name,
-        user_id,
-        email,
-        mobile_number,
-        user_source
-      FROM `dna-legal-central-data.case_mart.case_worker_directory_active`
-      WHERE full_name IS NOT NULL
-    ;;
+      cls.case_worker_id,
+      ANY_VALUE(cls.completed_date)  AS completed_date,
+      cls.completed_month,
+      cls.completed_year,
+      COUNT(*) AS total_cases,
+      COUNTIF(cls.deadline_category = 'working')              AS cases_meeting_working,
+      COUNTIF(cls.deadline_category = 'ip')                   AS cases_meeting_ip,
+      COUNTIF(cls.deadline_category = 'fallback')             AS cases_meeting_fallback,
+      COUNTIF(cls.deadline_category = 'missed_all')           AS cases_missed_all,
+      COUNTIF(cls.deadline_category = 'no_deadline_required') AS cases_no_deadline_required,
+      SAFE_DIVIDE(SUM(cls.days_late), NULLIF(COUNTIF(cls.deadline_category = 'missed_all'), 0)) AS avg_days_late_missed_all,
+
+      -- ✅ FIXED: aggregate correctly to avoid grouping error
+      MAX(IF(act.case_worker_id IS NOT NULL, TRUE, FALSE)) AS is_active_caseworker
+
+      FROM classified cls
+      LEFT JOIN active_caseworkers act
+      ON cls.case_worker_id = act.case_worker_id
+      WHERE cls.completed_month IS NOT NULL
+      GROUP BY cls.case_worker_id, cls.completed_month, cls.completed_year
+      ;;
   }
 
-  dimension: user_id {
-    label: "Case Worker ID"
-    type: string
+  # ================================
+  # Dimensions and Measures (unchanged)
+  # ================================
+
+  dimension: case_worker_completed_key {
     primary_key: yes
-    sql: ${TABLE}.user_id ;;
-  }
-
-  dimension: full_name {
-    label: "Case Worker Full Name"
+    hidden: yes
     type: string
-    sql: ${TABLE}.full_name ;;
+    sql: CONCAT(${TABLE}.case_worker_id, "-", CAST(${TABLE}.completed_date AS STRING)) ;;
   }
 
-  dimension: email {
-    label: "Email"
+  dimension: case_worker_id { type: string sql: ${TABLE}.case_worker_id ;; }
+
+  dimension_group: completed_date {
+    type: time
+    timeframes: [date, month, quarter, year]
+    datatype: date
+    convert_tz: no
+    label: "Case Completed Date (London)"
+    sql: ${TABLE}.completed_date ;;
+  }
+
+  dimension: is_active_caseworker {
+    type: yesno
+    label: "Active Caseworker (Completed Case This Year)"
+    sql: ${TABLE}.is_active_caseworker ;;
+    description: "TRUE if this caseworker completed at least one case in the current calendar year (across their full historical data)."
+  }
+
+  measure: total_cases                { type: sum sql: ${TABLE}.total_cases ;; label: "Total Cases Completed" value_format_name: decimal_0 }
+  measure: cases_meeting_working      { type: sum sql: ${TABLE}.cases_meeting_working ;; label: "Cases Meeting Working Deadline" value_format_name: decimal_0 }
+  measure: cases_meeting_ip           { type: sum sql: ${TABLE}.cases_meeting_ip ;; label: "Cases Meeting IP Deadline" value_format_name: decimal_0 }
+  measure: cases_meeting_fallback     { type: sum sql: ${TABLE}.cases_meeting_fallback ;; label: "Cases Meeting Fallback Deadline" value_format_name: decimal_0 }
+  measure: cases_missed_all           { type: sum sql: ${TABLE}.cases_missed_all ;; label: "Cases Missed All Deadlines" value_format_name: decimal_0 }
+  measure: cases_no_deadline_required { type: sum sql: ${TABLE}.cases_no_deadline_required ;; label: "Cases with No Deadline Required" value_format_name: decimal_0 }
+
+  measure: pct_meeting_working {
+    type: number
+    sql: SAFE_DIVIDE(${cases_meeting_working}, NULLIF(${total_cases} - ${cases_no_deadline_required},0)) ;;
+    label: "% Meeting Working Deadline"
+    value_format_name: percent_1
+  }
+
+  measure: pct_meeting_any_deadline {
+    label: "% Meeting Any Deadline"
+    type: number
+    sql: SAFE_DIVIDE(
+         (${cases_meeting_working} + ${cases_meeting_ip} + ${cases_meeting_fallback}),
+         NULLIF(${total_cases} - ${cases_no_deadline_required}, 0)
+       ) ;;
+    value_format_name: percent_1
+    description: "Percentage of cases completed on time under any applicable deadline type (working, IP, or fallback)."
+    group_label: "Performance – Combined"
+  }
+
+
+  measure: avg_days_late_missed_all {
+    type: average
+    sql: ${TABLE}.avg_days_late_missed_all ;;
+    label: "Avg Days Late (Missed All)"
+    value_format_name: decimal_1
+  }
+
+  measure: sanity_total_cases {
+    type: number
+    sql: ${cases_meeting_working} + ${cases_meeting_ip} + ${cases_meeting_fallback} + ${cases_missed_all} + ${cases_no_deadline_required} ;;
+    label: "Sanity Total (All Categories)"
+    value_format_name: decimal_0
+  }
+
+# ===========================================================
+# 🔹 YEAR-OVER-YEAR PERFORMANCE COMPARISONS
+# ===========================================================
+
+# --- Supporting Dimension ---
+  dimension: completed_year {
+    type: number
+    sql: EXTRACT(YEAR FROM ${TABLE}.completed_date) ;;
+    label: "Completed Year"
+    description: "Calendar year when the case was completed."
+  }
+
+# ===========================================================
+# --- CASE COUNT YOY COMPARISON
+# ===========================================================
+
+  measure: total_cases_this_year {
+    type: sum
+    sql:
+    CASE
+      WHEN EXTRACT(YEAR FROM ${TABLE}.completed_date) = EXTRACT(YEAR FROM CURRENT_DATE())
+      THEN ${TABLE}.total_cases
+      ELSE 0
+    END ;;
+    label: "Cases Completed – This Year"
+    value_format_name: decimal_0
+  }
+
+  measure: total_cases_last_year {
+    type: sum
+    sql:
+    CASE
+      WHEN EXTRACT(YEAR FROM ${TABLE}.completed_date) =
+           EXTRACT(YEAR FROM DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR))
+      THEN ${TABLE}.total_cases
+      ELSE 0
+    END ;;
+    label: "Cases Completed – Last Year"
+    value_format_name: decimal_0
+  }
+
+  measure: pct_change_cases_yoy {
+    type: number
+    sql: SAFE_DIVIDE(
+         (${total_cases_this_year} - ${total_cases_last_year}),
+         NULLIF(${total_cases_last_year}, 0)
+       ) ;;
+    label: "% Change – Cases Completed YoY"
+    value_format_name: percent_1
+    description: "Shows growth or decline in total cases completed compared with last year."
+  }
+
+# ===========================================================
+# --- % MEETING WORKING DEADLINE YOY
+# ===========================================================
+
+  measure: pct_meeting_working_this_year {
+    type: number
+    sql: SAFE_DIVIDE(
+         SUM(
+           CASE
+             WHEN EXTRACT(YEAR FROM ${TABLE}.completed_date) = EXTRACT(YEAR FROM CURRENT_DATE())
+             THEN ${TABLE}.cases_meeting_working
+           END
+         ),
+         NULLIF(SUM(
+           CASE
+             WHEN EXTRACT(YEAR FROM ${TABLE}.completed_date) = EXTRACT(YEAR FROM CURRENT_DATE())
+             THEN ${TABLE}.total_cases
+           END
+         ), 0)
+       ) ;;
+    label: "% Meeting Working Deadline – This Year"
+    value_format_name: percent_1
+  }
+
+  measure: pct_meeting_working_last_year {
+    type: number
+    sql: SAFE_DIVIDE(
+         SUM(
+           CASE
+             WHEN EXTRACT(YEAR FROM ${TABLE}.completed_date) =
+                  EXTRACT(YEAR FROM DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR))
+             THEN ${TABLE}.cases_meeting_working
+           END
+         ),
+         NULLIF(SUM(
+           CASE
+             WHEN EXTRACT(YEAR FROM ${TABLE}.completed_date) =
+                  EXTRACT(YEAR FROM DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR))
+             THEN ${TABLE}.total_cases
+           END
+         ), 0)
+       ) ;;
+    label: "% Meeting Working Deadline – Last Year"
+    value_format_name: percent_1
+  }
+
+  measure: pct_change_meeting_working_yoy {
+    type: number
+    sql: SAFE_DIVIDE(
+         (${pct_meeting_working_this_year} - ${pct_meeting_working_last_year}),
+         NULLIF(${pct_meeting_working_last_year}, 0)
+       ) ;;
+    label: "% Change – Meeting Working Deadline YoY"
+    value_format_name: percent_1
+  }
+
+# ===========================================================
+# --- % MEETING ANY DEADLINE YOY
+# ===========================================================
+
+  measure: pct_meeting_any_deadline_this_year {
+    type: number
+    sql: SAFE_DIVIDE(
+         SUM(
+           CASE
+             WHEN EXTRACT(YEAR FROM ${TABLE}.completed_date) = EXTRACT(YEAR FROM CURRENT_DATE())
+             THEN ${TABLE}.cases_meeting_working +
+                  ${TABLE}.cases_meeting_ip +
+                  ${TABLE}.cases_meeting_fallback
+           END
+         ),
+         NULLIF(SUM(
+           CASE
+             WHEN EXTRACT(YEAR FROM ${TABLE}.completed_date) = EXTRACT(YEAR FROM CURRENT_DATE())
+             THEN ${TABLE}.total_cases
+           END
+         ), 0)
+       ) ;;
+    label: "% Meeting Any Deadline – This Year"
+    value_format_name: percent_1
+  }
+
+  measure: pct_meeting_any_deadline_last_year {
+    type: number
+    sql: SAFE_DIVIDE(
+         SUM(
+           CASE
+             WHEN EXTRACT(YEAR FROM ${TABLE}.completed_date) =
+                  EXTRACT(YEAR FROM DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR))
+             THEN ${TABLE}.cases_meeting_working +
+                  ${TABLE}.cases_meeting_ip +
+                  ${TABLE}.cases_meeting_fallback
+           END
+         ),
+         NULLIF(SUM(
+           CASE
+             WHEN EXTRACT(YEAR FROM ${TABLE}.completed_date) =
+                  EXTRACT(YEAR FROM DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR))
+             THEN ${TABLE}.total_cases
+           END
+         ), 0)
+       ) ;;
+    label: "% Meeting Any Deadline – Last Year"
+    value_format_name: percent_1
+  }
+
+  measure: pct_change_meeting_any_yoy {
+    type: number
+    sql: SAFE_DIVIDE(
+         (${pct_meeting_any_deadline_this_year} - ${pct_meeting_any_deadline_last_year}),
+         NULLIF(${pct_meeting_any_deadline_last_year}, 0)
+       ) ;;
+    label: "% Change – Meeting Any Deadline YoY"
+    value_format_name: percent_1
+  }
+
+
+# --- Pretty Trend Label (renders arrows/text) ---
+  measure: trend_status_any_deadline {
     type: string
-    sql: ${TABLE}.email ;;
+    sql: CASE
+         WHEN ${pct_change_meeting_any_yoy} > 0 THEN '⬆️ Improved'
+         WHEN ${pct_change_meeting_any_yoy} < 0 THEN '⬇️ Declined'
+         ELSE '– No Change'
+       END ;;
+    label: "Trend – Any Deadline YoY"
   }
 
-  dimension: mobile_number {
-    label: "Mobile Number"
-    type: string
-    sql: ${TABLE}.mobile_number ;;
-  }
-
-  dimension: user_source {
-    label: "Source System"
-    type: string
-    sql: ${TABLE}.user_source ;;
-  }
-
-  measure: count {
-    label: "Count of Active Case Workers"
-    type: count
-  }
-}
-
-
-
-join: case_worker_id_map_active {
-  type: left_outer
-  sql_on: ${cases_operations.case_worker_id} = ${case_worker_id_map_active.user_id} ;;
-  relationship: many_to_one
 }
