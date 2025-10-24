@@ -1,21 +1,10 @@
--- 🟣 Lifecycle Breakdown – This Year (by Caseworker)
-SELECT
-  CASE
-    WHEN c.status_normalized = 'Booking Appointments' THEN '1. Booking Appointments'
-    WHEN c.status_normalized = 'Appointments Booked' THEN '2. Appointments Booked'
-    WHEN c.status_normalized = 'Awaiting Samples' THEN '3. Awaiting Samples'
-    WHEN c.status_normalized = 'Testing Underway' THEN '4. Testing Underway'
-    WHEN c.status_normalized = 'Testing Completed' THEN '5. Testing Completed'
-    WHEN c.status_normalized = 'Case Completed' THEN '6. Completed'
-    ELSE '7. Support & Admin Statuses'
-  END AS lifecycle_stage,
-  COUNT(*) AS cases_managed_current_year
-FROM `dna-legal-central-data.case_mart.cases` AS c
-JOIN `dna-legal-central-data.case_mart.users` AS u
-  ON c.case_worker_id = u.id
-WHERE c.status_normalized IS NOT NULL
-  AND c.status_normalized != 'Training/Duplicate'
-  AND EXTRACT(YEAR FROM c.created_at) = EXTRACT(YEAR FROM CURRENT_DATE())  -- "Current Year"
-  AND CONCAT(u.first_name, ' ', u.last_name) = 'Georgia Travis'             -- 👈 your caseworker filter
-GROUP BY lifecycle_stage
-ORDER BY lifecycle_stage;
+measure: count_case_completed_last_30_days {
+    type: sum
+    label: "Case Completed (Last 30 Days)"
+    value_format_name: decimal_0
+    sql: CASE
+          WHEN ${status_display} = 'Case Completed'
+           AND ${completed_raw} >= TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY))
+          THEN 1 ELSE 0
+        END ;;
+  }
