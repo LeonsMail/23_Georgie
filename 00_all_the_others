@@ -17,7 +17,7 @@ WHERE c.case_worker_id IS NOT NULL
         'Closed'
       )
   AND (
-        c.updated_at >= TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL -6 MONTH)
-        OR c.start_date >= TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL -6 MONTH)
+        DATE(c.updated_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
+        OR DATE(c.start_date) >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
       )
 ORDER BY full_name;
