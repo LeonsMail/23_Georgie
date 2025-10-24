@@ -1,7 +1,53 @@
-SELECT
-  user_id,
-  full_name,
-  mobile_number,
-  user_source
-FROM `dna-legal-central-data.case_mart.case_worker_directory_active`
-ORDER BY full_name;
+view: case_worker_id_map_active {
+  label: "Case Worker ID Map (Active Only)"
+  description: "Active case workers only — sourced from case_worker_directory_active table. Used for filters in Case Worker Dashboard."
+
+  derived_table: {
+    sql:
+      SELECT
+        full_name,
+        user_id,
+        email,
+        mobile_number,
+        user_source
+      FROM `dna-legal-central-data.case_mart.case_worker_directory_active`
+      WHERE full_name IS NOT NULL
+    ;;
+  }
+
+  dimension: user_id {
+    label: "Case Worker ID"
+    type: string
+    primary_key: yes
+    sql: ${TABLE}.user_id ;;
+  }
+
+  dimension: full_name {
+    label: "Case Worker Full Name"
+    type: string
+    sql: ${TABLE}.full_name ;;
+  }
+
+  dimension: email {
+    label: "Email"
+    type: string
+    sql: ${TABLE}.email ;;
+  }
+
+  dimension: mobile_number {
+    label: "Mobile Number"
+    type: string
+    sql: ${TABLE}.mobile_number ;;
+  }
+
+  dimension: user_source {
+    label: "Source System"
+    type: string
+    sql: ${TABLE}.user_source ;;
+  }
+
+  measure: count {
+    label: "Count of Active Case Workers"
+    type: count
+  }
+}
