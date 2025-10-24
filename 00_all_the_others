@@ -1,33 +1,12 @@
--- 🟣 Case Worker Directory (Preview Query)
-SELECT DISTINCT
-  u.id AS user_id,
-  CONCAT(u.first_name, ' ', u.last_name) AS full_name,
-  u.email,
-  u.mobile_number,
-  u.source AS user_source,
-  c.source AS case_source
+SELECT
+  CASE
+    WHEN u.email IS NULL THEN 'No Email'
+    ELSE 'Has Email'
+  END AS email_status,
+  COUNT(DISTINCT u.id) AS user_count
 FROM `dna-legal-central-data.case_mart.users` AS u
 JOIN `dna-legal-central-data.case_mart.cases` AS c
   ON u.id = c.case_worker_id
 WHERE c.case_worker_id IS NOT NULL
   AND c.status_normalized != 'Training/Duplicate'
-ORDER BY full_name;
-
-
-
-SELECT DISTINCT
-  u.id AS user_id,
-  CONCAT(u.first_name, ' ', u.last_name) AS full_name,
-  u.email,
-  u.source
-FROM `dna-legal-central-data.case_mart.users` AS u
-JOIN `dna-legal-central-data.case_mart.cases` AS c
-  ON u.id = c.case_worker_id
-WHERE c.case_worker_id IS NOT NULL
-  AND c.status_normalized != 'Training/Duplicate'
-  AND u.email IS NOT NULL
-ORDER BY full_name;
-
-
-
-
+GROUP BY email_status;
