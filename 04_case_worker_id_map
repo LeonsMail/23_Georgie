@@ -1,0 +1,28 @@
+view: case_worker_id_map {
+  derived_table: {
+    sql:
+      SELECT
+        CONCAT(first_name, ' ', last_name) AS full_name,
+        id AS user_id,
+        source
+      FROM `dna-legal-central-data.case_mart.users`
+      WHERE email IS NOT NULL
+    ;;
+  }
+
+  dimension: full_name {
+    type: string
+    primary_key: yes
+    sql: ${TABLE}.full_name ;;
+  }
+
+  dimension: user_id {
+    type: string
+    sql: ${TABLE}.user_id ;;
+  }
+
+  dimension: source {
+    type: string
+    sql: ${TABLE}.source ;;
+  }
+}
