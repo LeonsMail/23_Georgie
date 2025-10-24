@@ -1,0 +1,374 @@
+view: cases {
+  sql_table_name: `dna-legal-central-data.case_mart.cases` ;;
+  drill_fields: [case_number]
+
+  dimension: id {
+    primary_key: yes
+    type: string
+    description: "A unique identifier for the case within the CRM system"
+    sql: ${TABLE}.id ;;
+  }
+
+  dimension: status_normalized
+  { label: "Case Status"
+    type: string
+    sql: ${TABLE}.status_normalized ;; }
+
+
+  dimension: status_stage_order
+  { hidden: no
+    type: number
+    sql: ${TABLE}.status_stage_order ;; }
+
+  dimension: account_id {
+    type: string
+    description: "A unique identifier for the account associated with the case"
+    sql: ${TABLE}.account_id ;;
+  }
+  dimension: case_number {
+    type: string
+    description: "The internal reference number for the case"
+    sql: ${TABLE}.case_number ;;
+  }
+  dimension: case_worker_id {
+    type: string
+    description: "The identifier for the case worker or legal professional assigned to the case"
+    sql: ${TABLE}.case_worker_id ;;
+  }
+  dimension: client_ref {
+    type: string
+    description: "(If applicable) The name of the client related to the case"
+    sql: ${TABLE}.client_ref ;;
+  }
+  dimension_group: court {
+    type: time
+    description: "(If applicable) The date and time of any scheduled court hearings or appearances"
+    timeframes: [raw, time, date, week, month, quarter, year]
+    sql: ${TABLE}.court_date ;;
+  }
+
+  dimension: date_is_null {
+    type: yesno
+    sql: ${TABLE}.court_date IS NULL ;;
+    description: "Returns 'Yes' if filing date is null. Used for custom sorting."
+  }
+
+  dimension: business_date_is_null {
+    type: yesno
+    sql: ${date_diff_no_weekend} IS NULL ;;
+  }
+
+  dimension: court_ref {
+    type: string
+    description: "(If applicable) A reference number assigned by the court for the case"
+    sql: ${TABLE}.court_ref ;;
+  }
+  dimension_group: created {
+    type: time
+    description: "The time when the record was created"
+    timeframes: [raw, time, date, week, month, month_name, month_num, quarter, year]
+    sql: ${TABLE}.created_at ;;
+  }
+
+  dimension_group: working_deadline_date{
+    label: "Working Deadline"
+    description: "DNA Legal Deadline, normally 2 working days before IP Deadline"
+    type:  time
+    timeframes: [raw, time, date, week, month, quarter, year]
+    sql: ${TABLE}.working_deadline_date ;;
+  }
+
+  dimension_group: deadline {
+    label: "IP Deadline"
+    description: "Deadline provided by the IP"
+    type: time
+    timeframes: [raw, time, date, week, month, quarter, year]
+    sql: ${TABLE}.deadline_date ;;
+  }
+
+  dimension_group: ip_advised_completion_date {
+    label: "Deadline Provided to IP"
+    description: "Deadline Provided to the IP"
+    type: time
+    timeframes: [raw, time, date, week, month, quarter, year]
+    sql: ${TABLE}.deadline_given_to_ip_if_missed ;;
+  }
+
+  dimension_group: days_to_deadline {
+    label: "Calendar Days to Working Deadline"
+    type: duration
+    sql_start: CURRENT_TIMESTAMP() ;;
+    sql_end: ${TABLE}.working_deadline_date  ;;
+  }
+
+  dimension: date_diff_no_weekend {
+    label: "Business Days to Working Deadline (not incl. Holidays)"
+    type: number
+    sql:  DATE_DIFF(DATE(${TABLE}.working_deadline_date), CURRENT_DATE(), DAY) - DATE_DIFF(DATE(${TABLE}.working_deadline_date), CURRENT_DATE(), WEEK) * 2 ;;
+  }
+
+  dimension: date_diff_no_weekend_ip_deadline {
+      label: "Business Days to Deadline to IP for DNA Family (not incl. Holidays)"
+      type: number
+      sql:  DATE_DIFF(DATE(${TABLE}.deadline_given_to_ip_if_missed), CURRENT_DATE(), DAY) - DATE_DIFF(DATE(${TABLE}.deadline_given_to_ip_if_missed), CURRENT_DATE(), WEEK) * 2 ;;}
+
+  dimension: priority {
+    type: string
+    description: "The priority level assigned to the case"
+    sql: ${TABLE}.priority ;;
+  }
+  dimension: sales_person_id {
+    type: string
+    description: "The identifier for the sales person associated with the case"
+    sql: ${TABLE}.sales_person_id ;;
+  }
+  dimension_group: sample_by {
+    label: "Sample By Date"
+    type: time
+    description: "(If applicable) The date by which samples need to be collected or provided"
+    timeframes: [raw, time, date, week, month, quarter, year]
+    sql: ${TABLE}.sample_by_date ;;
+  }
+  dimension: source {
+    type: string
+    description: "The source of the data (mim or sugar_crm)"
+    sql: ${TABLE}.source ;;
+  }
+  dimension_group: start {
+    type: time
+    description: "The date and time the case was officially started or opened"
+    timeframes: [raw, time, date, week, month, quarter, year]
+    sql: ${TABLE}.start_date ;;
+  }
+
+  dimension: hair_colour {
+    label: "Raw Hair Colour"
+    type: string
+    sql: ${TABLE}.hair_colour ;;
+  }
+
+# Keep the raw CRM code but hidden
+  dimension: status_code {
+    hidden: yes
+    type: string
+    sql: ${TABLE}.status ;;
+  }
+
+# New single source of truth to use in Explores & tiles
+  dimension: status_display {
+    label: "Case Status"
+    type: string
+    sql:
+    COALESCE(
+      ${status_normalized},              -- from Dataform (preferred)
+      CASE                               -- fallback only if normalized is null
+        WHEN ${status_code} = '0f' THEN 'Booking Appointments'
+        WHEN ${status_code} = '0i' THEN 'Awaiting Setup'
+        WHEN ${status_code} = '1'  THEN 'Appointment Booked'
+        WHEN ${status_code} = '1a' THEN 'Awaiting Samples'
+        WHEN ${status_code} = '2'  THEN 'Testing Underway'
+        WHEN ${status_code} = '3'  THEN 'Testing Completed'
+        WHEN ${status_code} = '5'  THEN 'Case Completed'
+        WHEN ${status_code} = '30' THEN 'On Hold'
+        WHEN ${status_code} = '31' THEN 'Future Case'
+        WHEN ${status_code} = '40' THEN 'Training/Duplicate'
+        WHEN ${status_code} = '63' THEN 'Not Proceeding'
+        WHEN ${status_code} = '64' THEN 'Case Contact Closure'
+        WHEN ${status_code} = '3m' THEN 'Not interested in'
+        WHEN ${status_code} = '5a' THEN 'Not interested in'
+        ELSE ${status_code}
+      END
+    ) ;;
+  # default sort by lifecycle order if present
+      drill_fields: [id]
+    }
+
+# Optional: a safe sort helper to use in visualizations
+    dimension: status_sort {
+      hidden: yes
+      type: number
+      sql:
+          CASE
+            WHEN ${status_stage_order} IS NOT NULL THEN ${status_stage_order}
+            ELSE 99
+          END ;;
+    }
+
+  dimension: is_lifecycle_status {
+    label: "Is Lifecycle Status"
+    type: yesno
+    sql: ${status_stage_order} IS NOT NULL ;;
+  }
+
+  dimension: status {
+    type: string
+    description: "The current status of the case"
+      sql: CASE WHEN ${TABLE}.status = '0f' THEN 'Booking Appointments'
+              WHEN ${TABLE}.status = '0i' THEN 'Awaiting Setup'
+              WHEN ${TABLE}.status = '1' THEN 'Appointment Booked'
+              WHEN ${TABLE}.status = '1a' THEN 'Awaiting Samples'
+              WHEN ${TABLE}.status = '2' THEN 'Testing Underway'
+              WHEN ${TABLE}.status = '3' THEN 'Testing Completed'
+              WHEN ${TABLE}.status = '30' THEN 'On Hold'
+              WHEN ${TABLE}.status = '31' THEN 'Future Case'
+              WHEN ${TABLE}.status = '40' THEN 'Training/Duplicate'
+              WHEN ${TABLE}.status = '5' THEN 'Case Completed'
+              WHEN ${TABLE}.status = '63' THEN 'Not Proceeding'
+              WHEN ${TABLE}.status = '64' THEN 'Case Contact Closure'
+              ELSE ${TABLE}.status END ;;
+      drill_fields: [case_number]
+  }
+  dimension: subject {
+    type: string
+    description: "A brief description or summary of the case's subject matter"
+    sql: ${TABLE}.subject ;;
+  }
+  dimension: testing_type {
+    type: string
+    description: "The type of testing or legal service involved in the case"
+    sql: ${TABLE}.testing_type ;;
+  }
+  dimension: hair_treatment_details {
+    type: string
+    sql: ${TABLE}.hair_treatment_details ;;
+  }
+
+  dimension_group: updated {
+    type: time
+    description: "The time when the record was last updated"
+    timeframes: [raw, time, date, week, month, quarter, year]
+    sql: ${TABLE}.updated_at ;;
+  }
+  dimension_group: completed {
+    type: time
+    description: "The time when the case was completed."
+    timeframes: [raw, time, date, week, month, month_name, month_num, quarter, year]
+    sql: ${TABLE}.completed_at ;;
+  }
+  measure: count {
+    type: count
+    drill_fields: [case_number, start_date, working_deadline_date_date, date_diff_no_weekend]
+  }
+  ## Hair Corelation ##
+  dimension: parsed_hair_treatment_category {
+    label: "Hair Treatment Category (Parsed)"
+    type: string
+    sql:
+    CASE
+      WHEN LOWER(${hair_treatment_details}) LIKE '%bleach%'
+        OR LOWER(${hair_treatment_details}) LIKE '%dye%'
+        OR LOWER(${hair_treatment_details}) LIKE '%highlight%'
+        OR LOWER(${hair_treatment_details}) LIKE '%peroxide%'
+        THEN 'Dyed or Bleached'
+
+      WHEN LOWER(${hair_treatment_details}) LIKE '%gel%'
+      OR LOWER(${hair_treatment_details}) LIKE '%wax%'
+      OR LOWER(${hair_treatment_details}) LIKE '%spray%'
+      OR LOWER(${hair_treatment_details}) LIKE '%clay%'
+      THEN 'Styling Product'
+
+      WHEN LOWER(${hair_treatment_details}) LIKE '%head & shoulders%'
+      OR LOWER(${hair_treatment_details}) LIKE '%garnier%'
+      OR LOWER(${hair_treatment_details}) LIKE '%neutrogena%'
+      OR LOWER(${hair_treatment_details}) LIKE '%pantene%'
+      THEN 'Shampoo Only'
+
+      WHEN LOWER(${hair_treatment_details}) LIKE '%psoriasis%'
+      OR LOWER(${hair_treatment_details}) LIKE '%dandruff%'
+      THEN 'Medical or Prescribed'
+
+      WHEN TRIM(${hair_treatment_details}) IN ('', ',', '^^') THEN 'Uninterpretable'
+
+      ELSE 'Other'
+      END ;;
+  }
+
+  dimension: hair_colour_grouped {
+    label: "Hair Colour"
+    type: string
+    sql:
+    CASE
+      WHEN LOWER(${hair_colour}) = 'blackhair' THEN 'Black'
+      WHEN LOWER(${hair_colour}) = 'blondhair' THEN 'Blonde'
+      WHEN LOWER(${hair_colour}) = 'brownhair' THEN 'Brown'
+      WHEN LOWER(${hair_colour}) = 'redhair' THEN 'Red'
+      WHEN LOWER(${hair_colour}) = 'grayandwhitehair' THEN 'Grey/White'
+      WHEN LOWER(${hair_colour}) = 'chestnuthair' THEN 'Chestnut'
+      WHEN LOWER(${hair_colour}) = 'auburnhair' THEN 'Auburn'
+      ELSE 'Other'
+    END ;;
+  }
+
+
+  dimension: has_hair_colour_info {
+    label: "Has Hair Colour Info"
+    type: yesno
+    sql: ${TABLE}.has_hair_colour_info ;;
+  }
+
+
+  dimension: has_hair_treatment_info {
+    label: "Has Hair Treatment Info"
+    type: yesno
+    sql: ${TABLE}.has_hair_treatment_info ;;
+  }
+
+  dimension: court_date_or_message {
+    label: "Court Date (or Message)"
+    type: string
+    sql: CASE
+          WHEN ${court_date} IS NULL THEN 'Court Date not needed for this case'
+          ELSE FORMAT_DATE('%Y-%m-%d', ${court_date})
+        END ;;
+  }
+
+
+  measure: percent_with_valid_hair_colour {
+    type: number
+    value_format_name: percent_1
+    label: "% with Hair Colour Info"
+    sql: SAFE_DIVIDE(
+          SUM(CASE WHEN ${has_hair_colour_info} THEN 1 ELSE 0 END),
+          COUNT(*)
+       ) ;;
+    group_label: "Hair Info Coverage"
+  }
+
+  measure: percent_with_valid_hair_treatment {
+    type: number
+    value_format_name: percent_1
+    label: "% with Hair Treatment Info"
+    sql: SAFE_DIVIDE(
+          SUM(CASE WHEN ${has_hair_treatment_info} THEN 1 ELSE 0 END),
+          COUNT(*)
+       ) ;;
+    group_label: "Hair Info Coverage"
+  }
+
+  measure: cases_created_count {
+    type: count
+    filters: [created_date: "this year"]
+    label: "Count of Created Cases"
+  }
+
+  measure: cases_completed_count {
+    type: count
+    filters: [completed_date: "this year"]
+    label: "Count of Completed Cases"
+  }
+
+  measure: count_of_closed_not_proceeding {
+    label: "Count of Cases Closed or Not Proceeding"
+    type: sum
+    sql:
+      CASE
+      WHEN ${status} IN (
+      'Not Proceeding',
+      'Case Contact Closure'
+      )
+      THEN 1
+      ELSE NULL
+      END ;;
+  }
+
+}
