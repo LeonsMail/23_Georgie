@@ -1,9 +1,34 @@
-measure: count_open_cases_currently_active {
-    label: "Open Cases – Currently Active"
-    group_label: "Lifecycle – Open Status"
-    type: count_distinct
-    sql: ${id} ;;
-    filters: [is_open_case: "yes"]
-    value_format_name: decimal_0
-    description: "Counts all unique cases that are currently in an open lifecycle status, regardless of when they were created."
-  }
+dimension: case_ids_open_cases_currently_active {
+  label: "Case IDs – Open Cases (Currently Active)"
+  group_label: "Lifecycle – Open Status"
+  type: string
+  sql:
+    CASE
+      WHEN ${is_open_case} THEN ${id}
+      ELSE NULL
+    END ;;
+  html:
+    {% assign ids = value | split: ',' %}
+    {% if ids.size > 50 %}
+      {{ ids[0..49] | join: ', ' }} ... ({{ ids.size }} total)
+    {% else %}
+      {{ value }}
+    {% endif %} ;;
+  description: "Lists all unique case IDs that are currently open (filtered by the same lifecycle logic as the measure)."
+}
+
+measure: case_ids_open_cases_currently_active_list {
+  label: "Case IDs List – Open Cases (Currently Active)"
+  group_label: "Lifecycle – Open Status"
+  type: string
+  sql:
+    STRING_AGG(DISTINCT ${case_ids_open_cases_currently_active}, ', ' IGNORE NULLS)
+  ;;
+  description: "Concatenated list of all case IDs currently in open lifecycle status, matching the open cases count."
+}
+
+dimension: case_id_if_open {
+  hidden: yes
+  sql: CASE WHEN ${is_open_case} THEN ${id} END ;;
+}
+
