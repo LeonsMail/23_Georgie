@@ -1,10 +1,1 @@
-# --- Concatenated string of all open case IDs ---
-measure: case_ids_open_cases_currently_active_list {
-  label: "Case IDs List – Open Cases (Currently Active)"
-  group_label: "Lifecycle – Open Status"
-  type: string
-  sql:
-    STRING_AGG(DISTINCT ${case_ids_open_cases_currently_active}, ', ')
-  ;;
-  description: "Concatenated list of all case IDs currently in open lifecycle status, matching the open cases count."
-}
+Live Open Cases Summary
