@@ -793,13 +793,102 @@ view: cases_operations {
               IF(${case_worker_user.source} = 'sugar_crm', ${case_worker_user.id}, 'N/A')) ;;
   }
 
+
+# ================================================================
+# 📊 CASES – OPEN CASES METRICS (MONTHLY + TOUCHED)
+# ----------------------------------------------------------------
+# Author: Leon Mihaescu
+# Date:   2025-10-26
+# Context:
+#   These dimensions and measures identify and count "open" cases
+#   based on lifecycle stages from `status_display`. They are used
+#   in operational dashboards to measure live workload and activity.
+#
+# Includes:
+#   • is_open_case → flags active lifecycle statuses
+#   • count_open_cases_this_month → open cases started this month
+#   • open_and_touched_this_month → open cases updated/created this month
+#   • count_open_cases_touched_this_month → open + touched count
+#
+# Dependencies:
+#   - Inherits fields from `cases` via `extends: [cases]`
+#   - Requires valid `status_display`, `start_raw`, and `updated_raw`
+# ----------------------------------------------------------------
+# Group Label: Lifecycle – Open Status
+# ================================================================
+
+
+  dimension: is_open_case {
+    label: "Is Open Case (Lifecycle Status)"
+    type: yesno
+    description: "TRUE if the case is currently active or progressing through an open lifecycle stage."
+    sql:
+    CASE
+      WHEN ${status_display} IN (
+        'Booking Appointments',
+        'Awaiting Setup',
+        'Appointment Booked',
+        'Awaiting Samples',
+        'Testing Underway',
+        'Testing Completed',
+        'Future Case'
+      )
+      THEN TRUE
+      ELSE FALSE
+    END ;;
+    group_label: "Lifecycle – Open Status"
+  }
+  
+  
+  measure: count_open_cases_this_month {
+    label: "Open Cases – This Month"
+    group_label: "Lifecycle – Open Status"
+    type: count_distinct
+    sql: ${id} ;;
+    filters: [
+      is_open_case: "yes",
+      start_raw: "this month"
+    ]
+    value_format_name: decimal_0
+    description: "Counts all unique cases that are in an open lifecycle status and were started this month."
+  }
+  
+  
+  dimension: open_and_touched_this_month {
+    hidden: yes
+    type: yesno
+    sql:
+    (
+      ${is_open_case}
+      AND (
+        DATE(${updated_raw}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+        OR DATE(${start_raw}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+      )
+    ) ;;
+    description: "TRUE if the case is open and was updated or created during the current month."
+  }
+  
+  
+  measure: count_open_cases_touched_this_month {
+    label: "Open Cases (Touched or Created – This Month)"
+    group_label: "Lifecycle – Open Status"
+    type: count_distinct
+    sql: ${id} ;;
+    filters: [open_and_touched_this_month: "yes"]
+    value_format_name: decimal_0
+    description: "Counts all unique open cases that were updated or newly created during the current month."
+  }
+
+
+
+
   dimension: updated_or_created {
     hidden: yes
     type: yesno
     sql:
     (
-      DATE(${updated_at}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
-      OR DATE(${start_date}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+      DATE(${updated_raw}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+      OR DATE(${start_raw}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
     ) ;;
     description: "TRUE if the case was either updated or created during the current month."
   }
@@ -814,8 +903,51 @@ view: cases_operations {
     description: "Counts all unique cases that were updated or newly created during the current month — representing every case actively managed."
   }
   
+  dimension: updated_or_created_this_year {
+    hidden: yes
+    type: yesno
+    sql:
+    (
+      EXTRACT(YEAR FROM DATE(${updated_raw})) = EXTRACT(YEAR FROM CURRENT_DATE())
+      OR EXTRACT(YEAR FROM DATE(${start_raw})) = EXTRACT(YEAR FROM CURRENT_DATE())
+    ) ;;
+    description: "TRUE if the case was either updated or created during the current year."
+  }
   
+  measure: total_cases_managed_this_year_touched_any {
+    label: "Cases Managed (Touched or Created – This Year)"
+    group_label: "Data – Case Worker"
+    type: count_distinct
+    sql: ${id} ;;
+    filters: [updated_or_created_this_year: "yes"]
+    value_format_name: decimal_0
+  }
   
+  dimension: updated_or_created_last_month {
+    hidden: yes
+    type: yesno
+    sql:
+    (
+      DATE(${updated_raw}) >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)
+      AND DATE(${updated_raw}) <  DATE_TRUNC(CURRENT_DATE(), MONTH)
+    )
+    OR
+    (
+      DATE(${start_raw}) >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)
+      AND DATE(${start_raw}) <  DATE_TRUNC(CURRENT_DATE(), MONTH)
+    ) ;;
+    description: "TRUE if the case was either updated or created during the previous month."
+  }
+  
+  measure: total_cases_managed_last_month_touched_any {
+    label: "Cases Managed (Touched or Created – Last Month)"
+    group_label: "Data – Case Worker"
+    type: count_distinct
+    sql: ${id} ;;
+    filters: [updated_or_created_last_month: "yes"]
+    value_format_name: decimal_0
+    description: "Counts all unique cases that were updated or newly created during the previous month — representing every case actively managed in the last month."
+  }
   
   dimension: mim_case_worker_id {
     group_label: "Data - Case Worker"
@@ -898,6 +1030,19 @@ view: cases_operations {
     filters: [start_date: "this month"]
     group_label: "Data – Measures / Cases – Counts & Percents"
   }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 
 # --- Lifecycle helpers (reuses the normalized fields from cases) ---
 
