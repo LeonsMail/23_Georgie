@@ -1,41 +1,25 @@
-dimension: updated_or_created {
+dimension: updated_or_created_last_month {
   hidden: yes
   type: yesno
   sql:
     (
-      DATE(${updated_raw}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
-      OR DATE(${start_raw}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
-    ) ;;
-  description: "TRUE if the case was either updated or created during the current month."
-}
-
-measure: total_cases_managed_this_month_touched_any {
-  label: "Cases Managed (Touched or Created – This Month)"
-  group_label: "Data – Case Worker"
-  type: count_distinct
-  sql: ${id} ;;
-  filters: [updated_or_created: "yes"]
-  value_format_name: decimal_0
-  description: "Counts all unique cases that were updated or newly created during the current month — representing every case actively managed."
-}
-
-
-dimension: updated_or_created_this_year {
-  hidden: yes
-  type: yesno
-  sql:
+      DATE(${updated_raw}) >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)
+      AND DATE(${updated_raw}) <  DATE_TRUNC(CURRENT_DATE(), MONTH)
+    )
+    OR
     (
-      EXTRACT(YEAR FROM DATE(${updated_raw})) = EXTRACT(YEAR FROM CURRENT_DATE())
-      OR EXTRACT(YEAR FROM DATE(${start_raw})) = EXTRACT(YEAR FROM CURRENT_DATE())
+      DATE(${start_raw}) >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)
+      AND DATE(${start_raw}) <  DATE_TRUNC(CURRENT_DATE(), MONTH)
     ) ;;
-  description: "TRUE if the case was either updated or created during the current year."
+  description: "TRUE if the case was either updated or created during the previous month."
 }
 
-measure: total_cases_managed_this_year_touched_any {
-  label: "Cases Managed (Touched or Created – This Year)"
+measure: total_cases_managed_last_month_touched_any {
+  label: "Cases Managed (Touched or Created – Last Month)"
   group_label: "Data – Case Worker"
   type: count_distinct
   sql: ${id} ;;
-  filters: [updated_or_created_this_year: "yes"]
+  filters: [updated_or_created_last_month: "yes"]
   value_format_name: decimal_0
+  description: "Counts all unique cases that were updated or newly created during the previous month — representing every case actively managed in the last month."
 }
