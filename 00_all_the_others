@@ -1,26 +1,26 @@
 # ================================================================
-# 📊 CASES – OPEN CASES THIS MONTH
+# 📊 CASES – OPEN CASES LAST MONTH
 # ----------------------------------------------------------------
 # Author: Leon Mihaescu
 # Date:   2025-10-26
 # Context:
 #   Counts unique open cases (based on active lifecycle statuses)
-#   that were started during the current calendar month.
+#   that were started during the previous calendar month.
 # ----------------------------------------------------------------
 # Depends on:
 #   - ${is_open_case}  (dimension defined above)
 #   - ${start_date}     (timeframe from the start dimension group)
 # ----------------------------------------------------------------
 
-measure: count_open_cases_this_month {
-  label: "Open Cases – This Month"
+measure: count_open_cases_last_month {
+  label: "Open Cases – Last Month"
   group_label: "Lifecycle – Open Status"
   type: count_distinct
   sql: ${id} ;;
   filters: [
     is_open_case: "yes",
-    start_date: "this month"
+    start_date: "last month"
   ]
   value_format_name: decimal_0
-  description: "Counts all unique cases that are in an open lifecycle status and were started during the current month."
+  description: "Counts all unique cases that are in an open lifecycle status and were started during the previous month."
 }
