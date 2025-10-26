@@ -1,14 +1,21 @@
-measure: count_case_completed_last_30_days {
-  type: sum
-  label: "Case Completed (Last 30 Days)"
-  value_format_name: decimal_0
-
+dimension: updated_or_created {
+  hidden: yes
+  type: yesno
   sql:
-    CASE
-      WHEN LOWER(${status_display}) IN ('completed', 'case completed')
-       AND ${completed_raw} IS NOT NULL
-       AND DATE(${completed_raw}) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
-      THEN 1
-      ELSE 0
-    END ;;
+    (
+      DATE(${updated_at}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+      OR DATE(${start_date}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+    ) ;;
+  description: "TRUE if the case was either updated or created during the current month."
+}
+
+
+measure: total_cases_managed_this_month {
+  label: "Cases Managed (Touched or Created – This Month)"
+  group_label: "Data – Case Worker"
+  type: count_distinct
+  sql: ${id} ;;
+  filters: [updated_or_created: "yes"]
+  value_format_name: decimal_0
+  description: "Counts all unique cases that were updated or newly created during the current month — representing every case actively managed."
 }
