@@ -3,8 +3,8 @@ dimension: updated_or_created {
   type: yesno
   sql:
     (
-      DATE(${cases.updated_at}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
-      OR DATE(${cases.start_date}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+      DATE(${updated_at}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+      OR DATE(${start_date}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
     ) ;;
   description: "TRUE if the case was either updated or created during the current month."
 }
