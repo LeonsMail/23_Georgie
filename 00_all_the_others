@@ -1,27 +1,9 @@
-# ================================================================
-# 📊 CASES – OPEN CASES LAST MONTH (CURRENTLY ACTIVE SNAPSHOT)
-# ----------------------------------------------------------------
-# Author: Leon Mihaescu
-# Date:   2025-10-26
-# Context:
-#   Counts unique cases that were still open during the previous
-#   calendar month — i.e., cases that had not yet been closed or
-#   completed by the end of that month.
-# ----------------------------------------------------------------
-# Dependencies:
-#   - ${is_open_case}  (uses current lifecycle logic)
-#   - ${updated_date}  (timeframe from 'updated' dimension group)
-# ----------------------------------------------------------------
-
-measure: count_open_cases_currently_active_last_month {
-  label: "Open Cases – Active Last Month"
-  group_label: "Lifecycle – Open Status"
-  type: count_distinct
-  sql: ${id} ;;
-  filters: [
-    is_open_case: "yes",
-    updated_date: "last month"
-  ]
-  value_format_name: decimal_0
-  description: "Counts all unique cases that remained in an open lifecycle status at any point during the previous month — used to compare month-over-month active workload."
-}
+measure: count_open_cases_currently_active {
+    label: "Open Cases – Currently Active"
+    group_label: "Lifecycle – Open Status"
+    type: count_distinct
+    sql: ${id} ;;
+    filters: [is_open_case: "yes"]
+    value_format_name: decimal_0
+    description: "Counts all unique cases that are currently in an open lifecycle status, regardless of when they were created."
+  }
