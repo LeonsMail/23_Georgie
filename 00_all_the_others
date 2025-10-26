@@ -1,3 +1,27 @@
+# ================================================================
+# 📊 CASES – OPEN CASES METRICS (MONTHLY + TOUCHED)
+# ----------------------------------------------------------------
+# Author: Leon Mihaescu
+# Date:   2025-10-26
+# Context:
+#   These dimensions and measures identify and count "open" cases
+#   based on lifecycle stages from `status_display`. They are used
+#   in operational dashboards to measure live workload and activity.
+#
+# Includes:
+#   • is_open_case → flags active lifecycle statuses
+#   • count_open_cases_this_month → open cases started this month
+#   • open_and_touched_this_month → open cases updated/created this month
+#   • count_open_cases_touched_this_month → open + touched count
+#
+# Dependencies:
+#   - Inherits fields from `cases` via `extends: [cases]`
+#   - Requires valid `status_display`, `start_raw`, and `updated_raw`
+# ----------------------------------------------------------------
+# Group Label: Lifecycle – Open Status
+# ================================================================
+
+
 dimension: is_open_case {
   label: "Is Open Case (Lifecycle Status)"
   type: yesno
@@ -33,6 +57,7 @@ measure: count_open_cases_this_month {
   description: "Counts all unique cases that are in an open lifecycle status and were started this month."
 }
 
+
 dimension: open_and_touched_this_month {
   hidden: yes
   type: yesno
@@ -47,6 +72,7 @@ dimension: open_and_touched_this_month {
   description: "TRUE if the case is open and was updated or created during the current month."
 }
 
+
 measure: count_open_cases_touched_this_month {
   label: "Open Cases (Touched or Created – This Month)"
   group_label: "Lifecycle – Open Status"
@@ -56,6 +82,3 @@ measure: count_open_cases_touched_this_month {
   value_format_name: decimal_0
   description: "Counts all unique open cases that were updated or newly created during the current month."
 }
-
-
-
