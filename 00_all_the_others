@@ -1,23 +1,316 @@
-# --- Optional helper: list of open case IDs ---
-dimension: case_ids_open_cases_currently_active {
-  label: "Case IDs – Open Cases (Currently Active)"
-  group_label: "Lifecycle – Open Status"
-  type: string
-  sql:
-    CASE
-      WHEN ${is_open_case} THEN ${id}
-      ELSE NULL
-    END ;;
-  description: "Lists all unique case IDs that are currently open (filtered by the same lifecycle logic as the measure)."
-}
-
-# --- Concatenated string of all open case IDs ---
-measure: case_ids_open_cases_currently_active_list {
-  label: "Case IDs List – Open Cases (Currently Active)"
-  group_label: "Lifecycle – Open Status"
-  type: string
-  sql:
-    STRING_AGG(DISTINCT ${case_ids_open_cases_currently_active}, ', ' IGNORE NULLS)
-  ;;
-  description: "Concatenated list of all case IDs currently in open lifecycle status, matching the open cases count."
+{
+  "data": {
+    "supports_pivot_in_db": true,
+    "null_sort_treatment": "low",
+    "expired": false,
+    "ran_at": "2025-10-26T15:05:24Z",
+    "aggregate_table_used_info": null,
+    "runtime": "0.678",
+    "added_params": {
+      "sorts": [
+        "cases_operations.count_open_cases_currently_active desc 0"
+      ]
+    },
+    "forecast_result": null,
+    "sql": "WITH case_worker_id_map_active AS (SELECT\n        full_name,\n        user_id,\n        email,\n        mobile_number,\n        user_source\n      FROM `dna-legal-central-data.case_mart.case_worker_directory_active`\n      WHERE full_name IS NOT NULL\n    )\nSELECT\n    case_worker_id_map_active.user_id  AS case_worker_id_map_active_user_id,\n    case_worker_id_map_active.full_name  AS case_worker_id_map_active_full_name,\n    COUNT(DISTINCT CASE WHEN ( CASE\n      WHEN (COALESCE(\n      cases_operations.status_normalized,              -- from Dataform (preferred)\n      CASE                               -- fallback only if normalized is null\n        WHEN cases_operations.status = '0f' THEN 'Booking Appointments'\n        WHEN cases_operations.status = '0i' THEN 'Awaiting Setup'\n        WHEN cases_operations.status = '1'  THEN 'Appointment Booked'\n        WHEN cases_operations.status = '1a' THEN 'Awaiting Samples'\n        WHEN cases_operations.status = '2'  THEN 'Testing Underway'\n        WHEN cases_operations.status = '3'  THEN 'Testing Completed'\n        WHEN cases_operations.status = '5'  THEN 'Case Completed'\n        WHEN cases_operations.status = '30' THEN 'On Hold'\n        WHEN cases_operations.status = '31' THEN 'Future Case'\n        WHEN cases_operations.status = '40' THEN 'Training/Duplicate'\n        WHEN cases_operations.status = '63' THEN 'Not Proceeding'\n        WHEN cases_operations.status = '64' THEN 'Case Contact Closure'\n        WHEN cases_operations.status = '3m' THEN 'Not interested in'\n        WHEN cases_operations.status = '5a' THEN 'Not interested in'\n        ELSE cases_operations.status\n      END\n    )\n) IN (\n        'Booking Appointments',\n        'Awaiting Setup',\n        'Appointment Booked',\n        'Awaiting Samples',\n        'Testing Underway',\n        'Testing Completed',\n        'Future Case'\n      )\n      THEN TRUE\n      ELSE FALSE\n    END ) THEN cases_operations.id  ELSE NULL END) AS cases_operations_count_open_cases_currently_active,\n    STRING_AGG(DISTINCT ( CASE\n      WHEN (CASE\n      WHEN (COALESCE(\n      cases_operations.status_normalized,              -- from Dataform (preferred)\n      CASE                               -- fallback only if normalized is null\n        WHEN cases_operations.status = '0f' THEN 'Booking Appointments'\n        WHEN cases_operations.status = '0i' THEN 'Awaiting Setup'\n        WHEN cases_operations.status = '1'  THEN 'Appointment Booked'\n        WHEN cases_operations.status = '1a' THEN 'Awaiting Samples'\n        WHEN cases_operations.status = '2'  THEN 'Testing Underway'\n        WHEN cases_operations.status = '3'  THEN 'Testing Completed'\n        WHEN cases_operations.status = '5'  THEN 'Case Completed'\n        WHEN cases_operations.status = '30' THEN 'On Hold'\n        WHEN cases_operations.status = '31' THEN 'Future Case'\n        WHEN cases_operations.status = '40' THEN 'Training/Duplicate'\n        WHEN cases_operations.status = '63' THEN 'Not Proceeding'\n        WHEN cases_operations.status = '64' THEN 'Case Contact Closure'\n        WHEN cases_operations.status = '3m' THEN 'Not interested in'\n        WHEN cases_operations.status = '5a' THEN 'Not interested in'\n        ELSE cases_operations.status\n      END\n    )\n) IN (\n        'Booking Appointments',\n        'Awaiting Setup',\n        'Appointment Booked',\n        'Awaiting Samples',\n        'Testing Underway',\n        'Testing Completed',\n        'Future Case'\n      )\n      THEN TRUE\n      ELSE FALSE\n    END\n) THEN cases_operations.id\n      ELSE NULL\n    END  ), ', ' IGNORE NULLS)\n   AS cases_operations_case_ids_open_cases_currently_active_list\nFROM `dna-legal-central-data.case_mart.cases`  AS cases_operations\nLEFT JOIN case_worker_id_map_active ON cases_operations.case_worker_id = case_worker_id_map_active.user_id\nWHERE (cases_operations.status_normalized != \"Training/Duplicate\" )\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT 500",
+    "sql_explain": null,
+    "fields": {
+      "measures": [
+        {
+          "align": "right",
+          "can_filter": true,
+          "category": "measure",
+          "default_filter_value": null,
+          "description": "Counts all unique cases that are currently in an open lifecycle status, regardless of when they were created.",
+          "enumerations": null,
+          "field_group_label": "Lifecycle – Open Status",
+          "fill_style": null,
+          "fiscal_month_offset": 0,
+          "has_allowed_values": false,
+          "hidden": false,
+          "is_filter": false,
+          "is_numeric": true,
+          "label": "Cases Operations Open Cases – Currently Active",
+          "label_from_parameter": null,
+          "label_short": "Open Cases – Currently Active",
+          "map_layer": null,
+          "name": "cases_operations.count_open_cases_currently_active",
+          "strict_value_format": false,
+          "requires_refresh_on_sort": false,
+          "sortable": true,
+          "suggestions": null,
+          "synonyms": [],
+          "tags": [],
+          "type": "count_distinct",
+          "user_attribute_filter_types": [
+            "number",
+            "advanced_filter_number"
+          ],
+          "value_format": "#,##0",
+          "view": "cases_operations",
+          "view_label": "Cases Operations",
+          "dynamic": false,
+          "week_start_day": "monday",
+          "original_view": "cases_operations",
+          "dimension_group": null,
+          "error": null,
+          "field_group_variant": "Open Cases – Currently Active",
+          "measure": true,
+          "parameter": false,
+          "primary_key": false,
+          "project_name": "dna_legal_general",
+          "scope": "cases_operations",
+          "suggest_dimension": "cases_operations.count_open_cases_currently_active",
+          "suggest_explore": "operations_performance",
+          "suggestable": false,
+          "is_fiscal": false,
+          "is_timeframe": false,
+          "can_time_filter": false,
+          "time_interval": null,
+          "lookml_link": "/projects/dna_legal_general/files/views%2Fcases_operations.view.lkml?line=869",
+          "period_over_period_params": null,
+          "permanent": null,
+          "source_file": "views/cases_operations.view.lkml",
+          "source_file_path": "dna_legal_general/views/cases_operations.view.lkml",
+          "sql": "${id} ",
+          "sql_case": null,
+          "filters": [
+            {
+              "field": "cases_operations.is_open_case",
+              "condition": "yes"
+            }
+          ],
+          "times_used": 0,
+          "sorted": {
+            "sort_index": 0,
+            "desc": true,
+            "pivot_index": 0
+          }
+        },
+        {
+          "align": "left",
+          "can_filter": true,
+          "category": "measure",
+          "default_filter_value": null,
+          "description": "Concatenated list of all case IDs currently in open lifecycle status, matching the open cases count.",
+          "enumerations": null,
+          "field_group_label": "Lifecycle – Open Status",
+          "fill_style": null,
+          "fiscal_month_offset": 0,
+          "has_allowed_values": false,
+          "hidden": false,
+          "is_filter": false,
+          "is_numeric": false,
+          "label": "Cases Operations Case IDs List – Open Cases (Currently Active)",
+          "label_from_parameter": null,
+          "label_short": "Case IDs List – Open Cases (Currently Active)",
+          "map_layer": null,
+          "name": "cases_operations.case_ids_open_cases_currently_active_list",
+          "strict_value_format": false,
+          "requires_refresh_on_sort": false,
+          "sortable": true,
+          "suggestions": null,
+          "synonyms": [],
+          "tags": [],
+          "type": "string",
+          "user_attribute_filter_types": [
+            "string",
+            "advanced_filter_string"
+          ],
+          "value_format": null,
+          "view": "cases_operations",
+          "view_label": "Cases Operations",
+          "dynamic": false,
+          "week_start_day": "monday",
+          "original_view": "cases_operations",
+          "dimension_group": null,
+          "error": null,
+          "field_group_variant": "Case IDs List – Open Cases (Currently Active)",
+          "measure": true,
+          "parameter": false,
+          "primary_key": false,
+          "project_name": "dna_legal_general",
+          "scope": "cases_operations",
+          "suggest_dimension": "cases_operations.case_ids_open_cases_currently_active_list",
+          "suggest_explore": "operations_performance",
+          "suggestable": false,
+          "is_fiscal": false,
+          "is_timeframe": false,
+          "can_time_filter": false,
+          "time_interval": null,
+          "lookml_link": "/projects/dna_legal_general/files/views%2Fcases_operations.view.lkml?line=932",
+          "period_over_period_params": null,
+          "permanent": null,
+          "source_file": "views/cases_operations.view.lkml",
+          "source_file_path": "dna_legal_general/views/cases_operations.view.lkml",
+          "sql": "STRING_AGG(DISTINCT ${case_ids_open_cases_currently_active}, ', ' IGNORE NULLS)\n  ",
+          "sql_case": null,
+          "filters": null,
+          "times_used": 0
+        }
+      ],
+      "dimensions": [
+        {
+          "align": "left",
+          "can_filter": true,
+          "category": "dimension",
+          "default_filter_value": null,
+          "description": "",
+          "enumerations": null,
+          "field_group_label": null,
+          "fill_style": null,
+          "fiscal_month_offset": 0,
+          "has_allowed_values": false,
+          "hidden": false,
+          "is_filter": false,
+          "is_numeric": false,
+          "label": "Case Worker - Active Directory Case Worker ID",
+          "label_from_parameter": null,
+          "label_short": "Case Worker ID",
+          "map_layer": null,
+          "name": "case_worker_id_map_active.user_id",
+          "strict_value_format": false,
+          "requires_refresh_on_sort": false,
+          "sortable": true,
+          "suggestions": null,
+          "synonyms": [],
+          "tags": [],
+          "type": "string",
+          "user_attribute_filter_types": [
+            "string",
+            "advanced_filter_string"
+          ],
+          "value_format": null,
+          "view": "case_worker_id_map_active",
+          "view_label": "Case Worker - Active Directory",
+          "dynamic": false,
+          "week_start_day": "monday",
+          "original_view": "case_worker_id_map_active",
+          "dimension_group": null,
+          "error": null,
+          "field_group_variant": "Case Worker ID",
+          "measure": false,
+          "parameter": false,
+          "primary_key": true,
+          "project_name": "dna_legal_general",
+          "scope": "case_worker_id_map_active",
+          "suggest_dimension": "case_worker_id_map_active.user_id",
+          "suggest_explore": "operations_performance",
+          "suggestable": true,
+          "is_fiscal": false,
+          "is_timeframe": false,
+          "can_time_filter": false,
+          "time_interval": null,
+          "lookml_link": "/projects/dna_legal_general/files/views%2Fcase_worker_id_map_active.view.lkml?line=18",
+          "period_over_period_params": null,
+          "permanent": null,
+          "source_file": "views/case_worker_id_map_active.view.lkml",
+          "source_file_path": "dna_legal_general/views/case_worker_id_map_active.view.lkml",
+          "sql": "${TABLE}.user_id ",
+          "sql_case": null,
+          "filters": null,
+          "times_used": 0
+        },
+        {
+          "align": "left",
+          "can_filter": true,
+          "category": "dimension",
+          "default_filter_value": null,
+          "description": "",
+          "enumerations": null,
+          "field_group_label": null,
+          "fill_style": null,
+          "fiscal_month_offset": 0,
+          "has_allowed_values": false,
+          "hidden": false,
+          "is_filter": false,
+          "is_numeric": false,
+          "label": "Case Worker - Active Directory Case Worker Full Name",
+          "label_from_parameter": null,
+          "label_short": "Case Worker Full Name",
+          "map_layer": null,
+          "name": "case_worker_id_map_active.full_name",
+          "strict_value_format": false,
+          "requires_refresh_on_sort": false,
+          "sortable": true,
+          "suggestions": null,
+          "synonyms": [],
+          "tags": [],
+          "type": "string",
+          "user_attribute_filter_types": [
+            "string",
+            "advanced_filter_string"
+          ],
+          "value_format": null,
+          "view": "case_worker_id_map_active",
+          "view_label": "Case Worker - Active Directory",
+          "dynamic": false,
+          "week_start_day": "monday",
+          "original_view": "case_worker_id_map_active",
+          "dimension_group": null,
+          "error": null,
+          "field_group_variant": "Case Worker Full Name",
+          "measure": false,
+          "parameter": false,
+          "primary_key": false,
+          "project_name": "dna_legal_general",
+          "scope": "case_worker_id_map_active",
+          "suggest_dimension": "case_worker_id_map_active.full_name",
+          "suggest_explore": "operations_performance",
+          "suggestable": true,
+          "is_fiscal": false,
+          "is_timeframe": false,
+          "can_time_filter": false,
+          "time_interval": null,
+          "lookml_link": "/projects/dna_legal_general/files/views%2Fcase_worker_id_map_active.view.lkml?line=25",
+          "period_over_period_params": null,
+          "permanent": null,
+          "source_file": "views/case_worker_id_map_active.view.lkml",
+          "source_file_path": "dna_legal_general/views/case_worker_id_map_active.view.lkml",
+          "sql": "${TABLE}.full_name ",
+          "sql_case": null,
+          "filters": null,
+          "times_used": 0
+        }
+      ],
+      "table_calculations": [],
+      "pivots": []
+    },
+    "fill_fields": [],
+    "has_totals": false,
+    "has_row_totals": false,
+    "applied_filters": {},
+    "always_filter": {},
+    "conditionally_filter_applied": {},
+    "applied_filter_expression": null,
+    "number_format": "1,234.56",
+    "explore": {
+      "name": "operations_performance",
+      "label": "Operations Performance",
+      "description": "Explore focused on tracking case lifecycle and operational KPIs (e.g. booking, lab, reporting stages)."
+    },
+    "timezone": "Europe/London",
+    "data": [],
+    "errors": [
+      {
+        "message": "The Google BigQuery Standard SQL database encountered an error while running this query.",
+        "message_details": "Query execution failed:  - IGNORE NULLS and RESPECT NULLS are not allowed for aggregate function string_agg at [46:5]",
+        "params": "WITH case_worker_id_map_active AS (SELECT\n        full_name,\n        user_id,\n        email,\n        mobile_number,\n        user_source\n      FROM `dna-legal-central-data.case_mart.case_worker_directory_active`\n      WHERE full_name IS NOT NULL\n    )\nSELECT\n    case_worker_id_map_active.user_id  AS case_worker_id_map_active_user_id,\n    case_worker_id_map_active.full_name  AS case_worker_id_map_active_full_name,\n    COUNT(DISTINCT CASE WHEN ( CASE\n      WHEN (COALESCE(\n      cases_operations.status_normalized,              -- from Dataform (preferred)\n      CASE                               -- fallback only if normalized is null\n        WHEN cases_operations.status = '0f' THEN 'Booking Appointments'\n        WHEN cases_operations.status = '0i' THEN 'Awaiting Setup'\n        WHEN cases_operations.status = '1'  THEN 'Appointment Booked'\n        WHEN cases_operations.status = '1a' THEN 'Awaiting Samples'\n        WHEN cases_operations.status = '2'  THEN 'Testing Underway'\n        WHEN cases_operations.status = '3'  THEN 'Testing Completed'\n        WHEN cases_operations.status = '5'  THEN 'Case Completed'\n        WHEN cases_operations.status = '30' THEN 'On Hold'\n        WHEN cases_operations.status = '31' THEN 'Future Case'\n        WHEN cases_operations.status = '40' THEN 'Training/Duplicate'\n        WHEN cases_operations.status = '63' THEN 'Not Proceeding'\n        WHEN cases_operations.status = '64' THEN 'Case Contact Closure'\n        WHEN cases_operations.status = '3m' THEN 'Not interested in'\n        WHEN cases_operations.status = '5a' THEN 'Not interested in'\n        ELSE cases_operations.status\n      END\n    )\n) IN (\n        'Booking Appointments',\n        'Awaiting Setup',\n        'Appointment Booked',\n        'Awaiting Samples',\n        'Testing Underway',\n        'Testing Completed',\n        'Future Case'\n      )\n      THEN TRUE\n      ELSE FALSE\n    END ) THEN cases_operations.id  ELSE NULL END) AS cases_operations_count_open_cases_currently_active,\n    STRING_AGG(DISTINCT ( CASE\n      WHEN (CASE\n      WHEN (COALESCE(\n      cases_operations.status_normalized,              -- from Dataform (preferred)\n      CASE                               -- fallback only if normalized is null\n        WHEN cases_operations.status = '0f' THEN 'Booking Appointments'\n        WHEN cases_operations.status = '0i' THEN 'Awaiting Setup'\n        WHEN cases_operations.status = '1'  THEN 'Appointment Booked'\n        WHEN cases_operations.status = '1a' THEN 'Awaiting Samples'\n        WHEN cases_operations.status = '2'  THEN 'Testing Underway'\n        WHEN cases_operations.status = '3'  THEN 'Testing Completed'\n        WHEN cases_operations.status = '5'  THEN 'Case Completed'\n        WHEN cases_operations.status = '30' THEN 'On Hold'\n        WHEN cases_operations.status = '31' THEN 'Future Case'\n        WHEN cases_operations.status = '40' THEN 'Training/Duplicate'\n        WHEN cases_operations.status = '63' THEN 'Not Proceeding'\n        WHEN cases_operations.status = '64' THEN 'Case Contact Closure'\n        WHEN cases_operations.status = '3m' THEN 'Not interested in'\n        WHEN cases_operations.status = '5a' THEN 'Not interested in'\n        ELSE cases_operations.status\n      END\n    )\n) IN (\n        'Booking Appointments',\n        'Awaiting Setup',\n        'Appointment Booked',\n        'Awaiting Samples',\n        'Testing Underway',\n        'Testing Completed',\n        'Future Case'\n      )\n      THEN TRUE\n      ELSE FALSE\n    END\n) THEN cases_operations.id\n      ELSE NULL\n    END  ), ', ' IGNORE NULLS)\n   AS cases_operations_case_ids_open_cases_currently_active_list\nFROM `dna-legal-central-data.case_mart.cases`  AS cases_operations\nLEFT JOIN case_worker_id_map_active ON cases_operations.case_worker_id = case_worker_id_map_active.user_id\nWHERE (cases_operations.status_normalized != \"Training/Duplicate\" )\nGROUP BY\n    1,\n    2\nORDER BY\n    3 DESC\nLIMIT 500",
+        "edit_url": null,
+        "error_pos": null,
+        "level": "error",
+        "sql_error_loc": {
+          "line": 46,
+          "column": 5
+        },
+        "help_url": "https://cloud.google.com/looker/docs/r/develop/the_x_database_encountered_an_error_while_running_this_query.?version=25.18"
+      }
+    ],
+    "drill_menu_build_time": 0.004433,
+    "has_subtotals": false
+  },
+  "dashboard_element_id": "1621",
+  "id": "7cfb9dc13311b43e1f9af04f4508293a",
+  "result_source": "query",
+  "status": "error"
 }
