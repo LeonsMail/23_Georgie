@@ -3,19 +3,8 @@ dimension: updated_or_created {
   type: yesno
   sql:
     (
-      DATE(${updated_at}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
-      OR DATE(${start_date}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+      DATE(${cases.updated_at}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+      OR DATE(${cases.start_date}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
     ) ;;
   description: "TRUE if the case was either updated or created during the current month."
-}
-
-
-measure: total_cases_managed_this_month {
-  label: "Cases Managed (Touched or Created – This Month)"
-  group_label: "Data – Case Worker"
-  type: count_distinct
-  sql: ${id} ;;
-  filters: [updated_or_created: "yes"]
-  value_format_name: decimal_0
-  description: "Counts all unique cases that were updated or newly created during the current month — representing every case actively managed."
 }
