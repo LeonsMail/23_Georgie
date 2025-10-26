@@ -793,7 +793,30 @@ view: cases_operations {
               IF(${case_worker_user.source} = 'sugar_crm', ${case_worker_user.id}, 'N/A')) ;;
   }
 
-
+  dimension: updated_or_created {
+    hidden: yes
+    type: yesno
+    sql:
+    (
+      DATE(${updated_at}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+      OR DATE(${start_date}) >= DATE_TRUNC(CURRENT_DATE(), MONTH)
+    ) ;;
+    description: "TRUE if the case was either updated or created during the current month."
+  }
+  
+  measure: total_cases_managed_this_month_touched_any {
+    label: "Cases Managed (Touched or Created – This Month)"
+    group_label: "Data – Case Worker"
+    type: count_distinct
+    sql: ${id} ;;
+    filters: [updated_or_created: "yes"]
+    value_format_name: decimal_0
+    description: "Counts all unique cases that were updated or newly created during the current month — representing every case actively managed."
+  }
+  
+  
+  
+  
   dimension: mim_case_worker_id {
     group_label: "Data - Case Worker"
     label: "Case Worker ID (MiM)"
@@ -847,7 +870,7 @@ view: cases_operations {
     sql: ${id} ;;
     filters: [start_date: "this month"]
   }
-  
+
   measure: cases_started_current_year {
     label: "Cases Started – Current Year"
     type: count
@@ -856,14 +879,23 @@ view: cases_operations {
     filters: [start_date: "this year"]
     group_label: "Data – Measures / Cases – Counts & Percents"
   }
-  
-  
+
+
   measure: cases_started_last_year {
     label: "Cases Started – Last Year"
     type: count
     value_format_name: decimal_0
     description: "Counts all cases with a start date in the previous calendar year (excludes Training/Duplicate)."
     filters: [start_date: "last year"]
+    group_label: "Data – Measures / Cases – Counts & Percents"
+  }
+
+  measure: cases_started_current_month {
+    label: "Cases Started – Current Year"
+    type: count
+    value_format_name: decimal_0
+    description: "Counts all cases with a start date in the current month (excludes Training/Duplicate)."
+    filters: [start_date: "this month"]
     group_label: "Data – Measures / Cases – Counts & Percents"
   }
 
@@ -1218,11 +1250,15 @@ view: cases_operations {
     type: sum
     label: "Case Completed (Last 30 Days)"
     value_format_name: decimal_0
-    sql: CASE
-          WHEN ${status_display} = 'Case Completed'
-           AND ${completed_raw} >= TIMESTAMP(DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY))
-          THEN 1 ELSE 0
-        END ;;
+
+    sql:
+    CASE
+      WHEN LOWER(${status_display}) IN ('completed', 'case completed')
+       AND ${completed_raw} IS NOT NULL
+       AND DATE(${completed_raw}) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+      THEN 1
+      ELSE 0
+    END ;;
   }
 
   measure: count_on_hold {
